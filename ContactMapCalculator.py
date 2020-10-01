@@ -1,5 +1,6 @@
-
+import numpy as np
 import math
+import sys
 
 vdW = {
     "CA": 1.90,
@@ -45,6 +46,21 @@ def get_atom_radius(atom):
     else:
         return water_radii
 
+def make_surface(f):
+    fiba = 0
+    fibb = 1
+    for i in range(f):
+        fiba, fibb = fibb, fiba+fibb
+    s = np.zeros([fibb, 3])
+    k = np.array(range(fibb))
+    theta = np.arccos(1.0-2.0*k/fibb)
+    phi = np.mod(2.0*k*fiba, fibb)
+    sin_theta = np.sin(theta)
+    s[:, 0] = sin_theta*np.cos(phi)
+    s[:, 1] = sin_theta*np.sin(phi)
+    s[:, 2] = np.cos(theta)
+
+    return s
 
 class ContactMapCalculator:
     def calculate_contact_map(self, chain):
@@ -62,7 +78,7 @@ class OverlapContactMapCalculator(ContactMapCalculator):
                 residue2 = chain[residues[r2]]
                 in_contact = False
                 for atom1 in residue1.atoms:
-                    r1 = get_atom_radius(atom1.name)
+                    r1 = get_atom_radius(atom1.name)+water_radii
                     for atom2 in residue2.atoms:
                         if atom1 == atom2:
                             continue
@@ -70,8 +86,8 @@ class OverlapContactMapCalculator(ContactMapCalculator):
                         dy = atom1.y-atom2.y
                         dz = atom1.z-atom2.z
                         dr = math.sqrt(dx*dx+dy*dy+dz*dz)
-                        r2 = get_atom_radius(atom2.name)
-                        if dr < water_radii+r1+r2:
+                        r2 = get_atom_radius(atom2.name)+water_radii
+                        if dr < r1+r2:
                             in_contact = True
                 if in_contact:
                     contacts.append([residue1.id,residue2.id])
@@ -83,13 +99,18 @@ class CSUContactMapCalculator(ContactMapCalculator):
         residues = list(chain.keys())
         nlen = len(residues)
         contacts = []
+        basic_surface = make_surface(14)
+        slen = len(basic_surface)           
         for r1 in range(nlen):
             residue1 = chain[residues[r1]]
-            for r2 in range(nlen):
-                residue2 = chain[residues[r2]]
-                in_contact = False
-                for atom1 in residue1.atoms:
-                    r1 = get_atom_radius(atom1.name)
+            unique_residue_contacts = set()
+            for atom1 in residue1.atoms:
+                r1 = get_atom_radius(atom1.name)+water_radii
+                surf = basic_surface*r1+np.array([atom1.x,atom1.y,atom1.z])
+                surf_closest_id=np.zeros(slen)-1
+                surf_closest_dist=np.zeros(slen)+sys.float_info.max
+                for r2 in range(nlen):
+                    residue2 = chain[residues[r2]]
                     for atom2 in residue2.atoms:
                         if atom1 == atom2:
                             continue
@@ -97,9 +118,21 @@ class CSUContactMapCalculator(ContactMapCalculator):
                         dy = atom1.y-atom2.y
                         dz = atom1.z-atom2.z
                         dr2 = dx*dx+dy*dy+dz*dz
-                        r2 = get_atom_radius(atom2.name)
-                        if dr2 < (water_radii+r1+r2)*(water_radii+r1+r2):
-                            in_contact = True
-                if in_contact:
-                    contacts.append([residue1.id, residue2.id])
+                        r2 = get_atom_radius(atom2.name)+water_radii
+                        if dr2<(r1+r2)*(r1+r2):
+                            sdx = surf[:,0]-atom2.x
+                            sdy = surf[:,1]-atom2.y
+                            sdz = surf[:,2]-atom2.z
+                            sdr2 = sdx*sdx+sdy*sdy+sdz*sdz
+                            closer = sdr2 < surf_closest_dist
+                            surf_closest_dist[closer] = sdr2[closer]
+                            surf_closest_id[closer] = r2
+                unique_residue_contacts.update(set(surf_closest_id))
+            for r2 in unique_residue_contacts:
+                if r2 != -1 and r2 != r1:
+                    contacts.append([r1,r2])
+
+
+
+                        
         return contacts

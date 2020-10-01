@@ -1,4 +1,4 @@
-import numpy as np
+
 import time
 import urllib.request
 
@@ -50,24 +50,9 @@ for line in lines:
         protein[res].add_atom(Atom(atom_name, 0, x, y, x))
 
 
-def make_surface(f):
-    fiba = 0
-    fibb = 1
-    for i in range(f):
-        fiba, fibb = fibb, fiba+fibb
-    s = np.zeros([fibb, 3])
-    k = np.array(range(fibb))
-    theta = np.arccos(1.0-2.0*k/fibb)
-    phi = np.mod(2.0*k*fiba, fibb)
-    sin_theta = np.sin(theta)
-    s[:, 0] = sin_theta*np.cos(phi)
-    s[:, 1] = sin_theta*np.sin(phi)
-    s[:, 2] = np.cos(theta)
-
-    return s
 
 
-surface = make_surface(10)
+
 
 
 start_time = time.time()
