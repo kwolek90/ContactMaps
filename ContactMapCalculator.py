@@ -100,9 +100,28 @@ class CSUContactMapCalculator(ContactMapCalculator):
         nlen = len(residues)
         contacts = []
         basic_surface = make_surface(14)
-        slen = len(basic_surface)           
+        slen = len(basic_surface)   
+        res_box = []
+        for r in range(nlen):
+            residue = chain[residues[r]]
+            xmin = sys.float_info.max
+            xmax = -sys.float_info.max
+            ymin = sys.float_info.max
+            ymax = -sys.float_info.max
+            zmin = sys.float_info.max
+            zmax = -sys.float_info.max
+            for atom in residue.atoms:
+                xmin = min(xmin,atom.x)
+                xmax = max(xmax,atom.x)
+                ymin = min(ymin,atom.y)
+                ymax = max(ymax,atom.y)
+                zmin = min(zmin,atom.z)
+                zmax = max(zmax,atom.z)
+            res_box.append([(xmax+xmin)/2,(ymax+ymin)/2,(zmax+zmin)/2,(xmax-xmin)/2+7,(ymax-ymin)/2+7,(zmax-zmin)/2+7])
+
         for r1 in range(nlen):
             residue1 = chain[residues[r1]]
+            b1=res_box[r1]
             unique_residue_contacts = set()
             for atom1 in residue1.atoms:
                 r1 = get_atom_radius(atom1.name)+water_radii
@@ -111,6 +130,14 @@ class CSUContactMapCalculator(ContactMapCalculator):
                 surf_closest_dist=np.zeros(slen)+sys.float_info.max
                 for r2 in range(nlen):
                     residue2 = chain[residues[r2]]
+                    b2=res_box[r2]
+                    if abs(b1[0]-b2[0]) > b1[3]+b2[3]:
+                        continue
+                    if abs(b1[1]-b2[1]) > b1[4]+b2[4]:
+                        continue
+                    if abs(b1[2]-b2[2]) > b1[5]+b2[5]:
+                        continue
+
                     for atom2 in residue2.atoms:
                         if atom1 == atom2:
                             continue
@@ -128,9 +155,7 @@ class CSUContactMapCalculator(ContactMapCalculator):
                             surf_closest_dist[closer] = sdr2[closer]
                             surf_closest_id[closer] = r2
                 unique_residue_contacts.update(set(surf_closest_id))
-            for r2 in unique_residue_contacts:
-                if r2 != -1 and r2 != r1:
-                    contacts.append([r1,r2])
+            contacts += [[r1,r2] for r2 in unique_residue_contacts if r2 != -1 and r2 != r1]
 
 
 
